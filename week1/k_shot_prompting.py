@@ -7,7 +7,58 @@ load_dotenv()
 NUM_RUNS_TIMES = 5
 
 # TODO: Fill this in!
-YOUR_SYSTEM_PROMPT = ""
+YOUR_SYSTEM_PROMPT = """
+You are a helpful assistant. You will be given a word, and your task is to reverse the order of the letters in that word.
+Reverse the order of letters in the following word. Only output the reversed word, no other text.
+For example:
+
+Input: abc
+Output: cba
+
+Input: ab
+Output: ba
+
+Input: abc
+Output: cba
+
+Input: abcd
+Output: dcba
+
+Input: abcde
+Output: edcba
+
+Input: abcdef
+Output: fedcba
+
+Input: abcdefg
+Output: gfedcba
+
+Input: abcdefgh
+Output: hgfedcba
+
+Input: abcdefghi
+Output: ihgfedcba
+
+Input: abcdefghij
+Output: jihgfedcba
+
+Input: abcdefghijk
+Output: kjihgfedcba
+
+Input: http
+Output: ptth
+
+Input: status
+Output: sutats
+
+Input: httpstatus
+Output: sutatsptth
+
+Now reverse the following word:
+
+Input: httpstatus
+Output:
+"""
 
 USER_PROMPT = """
 Reverse the order of letters in the following word. Only output the reversed word, no other text:
