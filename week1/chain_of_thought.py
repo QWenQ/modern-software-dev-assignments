@@ -8,7 +8,29 @@ load_dotenv()
 NUM_RUNS_TIMES = 5
 
 # TODO: Fill this in!
-YOUR_SYSTEM_PROMPT = ""
+# Zero-shot prompt with chain-of-thought reasoning.
+# The system prompt should include the question and a step-by-step reasoning process,
+# guiding the model to arrive at the final answer.
+#
+# YOUR_SYSTEM_PROMPT = """
+# Solve this problem, then give the final answer on the last line as "Answer: <number>".
+
+# what is 3^{12345} (mod 100)?
+# Let's think step by step.
+# """
+
+# Multi-shot prompt with chain-of-thought reasoning.
+# The system prompt should include the question and a step-by-step reasoning process,
+# guiding the model to arrive at the final answer.
+# Additionally, it should include one or more examples of similar problems with their solutions
+# to help the model understand the expected format and reasoning process.
+YOUR_SYSTEM_PROMPT = """
+2^{10} (mod 100) is 24, because 2^{10} = 1024, and 1024 mod 100 = 24.
+3^{5} (mod 100) is 43, because 3^{5} = 243, and 243 mod 100 = 43.
+Solve this problem, then give the final answer on the last line as "Answer: <number>".
+
+what is 3^{12345} (mod 100)?
+"""
 
 
 USER_PROMPT = """

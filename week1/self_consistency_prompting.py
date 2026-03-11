@@ -9,7 +9,25 @@ load_dotenv()
 NUM_RUNS_TIMES = 5
 
 # TODO: Fill this in! Try to get as close to 100% correctness across all runs as possible.
-YOUR_SYSTEM_PROMPT = ""
+# few-shot prompting, CoT prompting and self-consistency prompting
+YOUR_SYSTEM_PROMPT = """
+Q: Henry made two stops during his 100-mile bike trip. He first stopped after 20
+miles. His second stop was 15 miles before the end of the trip. How many miles
+did he travel between his first and second stops?
+A: He first stopped after 20 miles.
+His second stop was 15 miles before the end, which means he stopped at mile 100 - 15 = 85.
+Therefore, he traveled from mile 20 to mile 85 between his first and second stops,
+which is a distance of 85 - 20 = 65 miles.
+
+Solve this problem, then give the final answer on the last line as "Answer: <number>".
+
+Henry made two stops during his 60-mile bike trip. He first stopped after 20
+miles. His second stop was 15 miles before the end of the trip. How many miles
+did he travel between his first and second stops?
+
+Take majority vote across 5 runs to improve reliability of the final answer.
+
+"""
 
 USER_PROMPT = """
 Solve this problem, then give the final answer on the last line as "Answer: <number>".
