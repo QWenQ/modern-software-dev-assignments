@@ -37,7 +37,9 @@ QUESTION = (
 
 
 # TODO: Fill this in!
-YOUR_SYSTEM_PROMPT = ""
+YOUR_SYSTEM_PROMPT = """
+You are a helpful assistant for writing Python code to call a REST API based on provided documentation.
+"""
 
 
 # For this simple example
@@ -56,6 +58,8 @@ def YOUR_CONTEXT_PROVIDER(corpus: List[str]) -> List[str]:
 
     For example, return [] to simulate missing context, or [corpus[0]] to include the API docs.
     """
+    if len(corpus) > 0:
+        return [corpus[0]]
     return []
 
 
