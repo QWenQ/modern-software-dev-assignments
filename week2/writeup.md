@@ -22,23 +22,32 @@ For each exercise, please include what prompts you used to generate the answer, 
 ### Exercise 1: Scaffold a New Feature
 Prompt: 
 ```
-TODO
+You are a helpful coding assistant.
+First, you should analyze the existing `extract_action_items()` function in `app/services/extract.py`
+and then implement an LLM-powered alternative, `extract_action_items_llm()`,
+that utilizes Ollama to perform action item extraction via a large language model `mistral-nemo:12b`.
+You should set the temperature of the model to 0 for more deterministic output.
+The model should return as JSON.
 ``` 
 
 Generated Code Snippets:
 ```
-TODO: List all modified code files with the relevant line numbers.
+week2/app/services/extract.py:92 - 167
 ```
 
 ### Exercise 2: Add Unit Tests
 Prompt: 
 ```
-TODO
+You're a helpful coding assistant.
+Now, you should write unit tests for `extract_action_items_llm()` function in './tests/test_extract.py'.
+The unit tests should cover multiple inputs: bullet lists, keyword-prefixed lines, empty input.
+Before you run the tests, you should call `conda activate cs146s` to initialize environment.
+Now you can run the tests and reimplement `extract_action_items_llm()` until it passes all unit tests.
 ``` 
 
 Generated Code Snippets:
 ```
-TODO: List all modified code files with the relevant line numbers.
+week2/tests/test_extract.py:22 - 116 
 ```
 
 ### Exercise 3: Refactor Existing Code for Clarity
