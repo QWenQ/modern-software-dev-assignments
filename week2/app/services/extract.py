@@ -1,14 +1,10 @@
 from __future__ import annotations
 
-import os
+from dataclasses import dataclass
+import logging
 import re
-from typing import List
 import json
-from typing import Any
-from ollama import chat
-from dotenv import load_dotenv
-
-load_dotenv()
+from typing import Any, List
 
 BULLET_PREFIX_PATTERN = re.compile(r"^\s*([-*•]|\d+\.)\s+")
 KEYWORD_PREFIXES = (
@@ -16,6 +12,20 @@ KEYWORD_PREFIXES = (
     "action:",
     "next:",
 )
+JSON_ARRAY_PATTERN = re.compile(r"\[[\s\S]*\]")
+
+
+logger = logging.getLogger(__name__)
+
+
+class ExtractionServiceError(RuntimeError):
+    pass
+
+
+@dataclass(frozen=True)
+class ExtractionResult:
+    items: list[str]
+    extractor: str
 
 
 def _is_action_line(line: str) -> bool:
@@ -89,23 +99,85 @@ def _looks_imperative(sentence: str) -> bool:
     return first.lower() in imperative_starters
 
 
-def extract_action_items_llm(text: str) -> List[str]:
-    """
-    Extract action items from text using an LLM (Ollama with mistral-nemo:12b).
-    
-    This function sends the text to a language model for intelligent action item
-    extraction, which can better understand context and implicit action items.
-    
-    Args:
-        text: The input text to extract action items from.
-        
-    Returns:
-        A list of action items extracted by the LLM.
-    """
-    # Handle empty or whitespace-only input
+def _normalize_action_items(items: list[Any]) -> list[str]:
+    seen: set[str] = set()
+    unique: list[str] = []
+    for raw_item in items:
+        item = str(raw_item).strip()
+        if not item:
+            continue
+        cleaned = BULLET_PREFIX_PATTERN.sub("", item).strip()
+        cleaned = cleaned.removeprefix("[ ]").strip()
+        cleaned = cleaned.removeprefix("[todo]").strip()
+        lowered = cleaned.lower()
+        if not cleaned or lowered in seen:
+            continue
+        seen.add(lowered)
+        unique.append(cleaned)
+    return unique
+
+
+def _parse_action_items_response(response_text: str) -> list[str]:
+    if not response_text:
+        return []
+
+    candidate = response_text.strip()
+    try:
+        parsed = json.loads(candidate)
+    except json.JSONDecodeError:
+        match = JSON_ARRAY_PATTERN.search(candidate)
+        if match is not None:
+            try:
+                parsed = json.loads(match.group(0))
+            except json.JSONDecodeError:
+                parsed = None
+        else:
+            parsed = None
+
+    if isinstance(parsed, list):
+        return _normalize_action_items(parsed)
+
+    lines = [line.strip() for line in candidate.splitlines() if line.strip()]
+    return _normalize_action_items(lines)
+
+
+def _call_ollama(prompt: str, model_name: str) -> str:
+    try:
+        from ollama import chat
+    except ImportError as exc:  # pragma: no cover - depends on local environment
+        raise ExtractionServiceError("Ollama client is not installed") from exc
+
+    try:
+        response = chat(
+            model=model_name,
+            messages=[
+                {
+                    "role": "user",
+                    "content": prompt,
+                }
+            ],
+            options={"temperature": 0},
+        )
+    except Exception as exc:  # pragma: no cover - depends on local environment
+        raise ExtractionServiceError("Failed to call Ollama") from exc
+
+    if isinstance(response, dict):
+        content = response.get("message", {}).get("content", "")
+        if content is None:
+            return ""
+        return str(content).strip()
+
+    message = getattr(response, "message", None)
+    content = getattr(message, "content", "")
+    if content is None:
+        return ""
+    return str(content).strip()
+
+
+def _extract_action_items_llm(text: str, model_name: str) -> list[str]:
     if not text or not text.strip():
         return []
-    
+
     prompt = f"""You are an expert at extracting action items from text.
 Extract all action items (tasks that need to be done) from the following text.
 Return the results as a valid JSON array of strings.
@@ -117,50 +189,38 @@ Text:
 Return ONLY a valid JSON array like: ["action1", "action2", "action3"]
 Do not include any explanation or additional text."""
 
+    response_text = _call_ollama(prompt, model_name)
+    return _parse_action_items_response(response_text)
+
+
+def extract_action_items_llm(
+    text: str, model_name: str = "mistral-nemo:12b"
+) -> List[str]:
     try:
-        response = chat(
-            model="mistral-nemo:12b",
-            messages=[
-                {
-                    "role": "user",
-                    "content": prompt,
-                }
-            ],
-            options={"temperature": 0},
+        return _extract_action_items_llm(text, model_name=model_name)
+    except ExtractionServiceError as exc:
+        logger.warning(
+            "Falling back to heuristic extraction after LLM failure: %s",
+            exc,
         )
-        
-        # Extract the message content from the response
-        response_text = response.get("message", {}).get("content", "").strip()
-        
-        # Parse the JSON array from the response
+        return extract_action_items(text)
+
+
+class ActionItemExtractor:
+    def __init__(self, model_name: str, allow_fallback: bool = True) -> None:
+        self.model_name = model_name
+        self.allow_fallback = allow_fallback
+
+    def extract(self, text: str) -> ExtractionResult:
         try:
-            action_items = json.loads(response_text)
-            
-            # Ensure it's a list of strings and deduplicate
-            if isinstance(action_items, list):
-                seen: set[str] = set()
-                unique: List[str] = []
-                for item in action_items:
-                    item_str = str(item).strip()
-                    lowered = item_str.lower()
-                    if lowered not in seen:
-                        seen.add(lowered)
-                        unique.append(item_str)
-                return unique
-        except (json.JSONDecodeError, ValueError):
-            # If JSON parsing fails, fallback to line-by-line splitting
-            lines = [line.strip() for line in response_text.split('\n') if line.strip()]
-            # Remove any markdown list formatting
-            cleaned: List[str] = []
-            for line in lines:
-                cleaned_line = BULLET_PREFIX_PATTERN.sub("", line).strip()
-                if cleaned_line:
-                    cleaned.append(cleaned_line)
-            return cleaned
-    
-    except Exception as e:
-        # If LLM call fails, return empty list
-        print(f"Error calling LLM: {e}")
-        return []
-    
-    return []
+            items = _extract_action_items_llm(text, model_name=self.model_name)
+            return ExtractionResult(items=items, extractor="llm")
+        except ExtractionServiceError as exc:
+            if not self.allow_fallback:
+                raise
+            logger.warning(
+                "Falling back to heuristic extraction after LLM failure: %s",
+                exc,
+            )
+            items = extract_action_items(text)
+            return ExtractionResult(items=items, extractor="heuristic")

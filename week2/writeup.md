@@ -70,12 +70,25 @@ Test functions generated:
 ### Exercise 3: Refactor Existing Code for Clarity
 Prompt: 
 ```
-TODO
+Perform a refactor of the code in the backend, focusing in particular on well-defined API contracts/schemas, database layer cleanup, app lifecycle/configuration, error handling.
 ``` 
 
 Generated/Modified Code Snippets:
 ```
 TODO: List all modified code files with the relevant line numbers. (We anticipate there may be multiple scattered changes here – just produce as comprehensive of a list as you can.)
+New Files
+1. app/config.py: Centralized app settings. Defines the Settings dataclass, loads env vars, and resolves frontend/data/db paths plus Ollama configuration.
+2. app/dependencies.py: FastAPI dependency helpers. Pulls settings, database, and the action-item extractor from app.state.
+3. app/errors.py: Shared API error contract. Defines app-specific exceptions, error response models, and global exception handlers for validation, not-found, service, and unexpected errors.
+4. app/schemas.py: Typed request/response models. Replaces raw dict payload handling with explicit Pydantic schemas for notes and action items.
+5. tests/test_api.py: New API-level tests. Covers note creation/listing, extraction flow, validation errors, missing resources, and extractor failure behavior.
+
+Refactored Files
+1. app/main.py: Refactored into an app factory with FastAPI lifespan startup. Initializes DB and extractor in app.state, registers exception handlers, and serves the frontend without import-time side effects.
+2. app/db.py: Cleaned up into a repository-style database layer. Adds typed NoteRecord/ActionItemRecord models, transaction-safe connection management, atomic note+items creation, and keeps thin compatibility wrappers for old helper functions.
+3. app/routers/notes.py: Switched from loose JSON handling to typed schemas and dependency injection. Also adds GET /notes and consistent 404 behavior.
+4. app/routers/action_items.py: Refactored to typed request/response models, shared errors, dependency-injected extractor/DB access, and transactional persistence when saving a note with extracted items.
+5. app/services/extract.py: Reworked LLM extraction flow. Separates Ollama call failures from parsing, normalizes/deduplicates outputs more defensively, and supports heuristic fallback through a dedicated extractor class.
 ```
 
 
