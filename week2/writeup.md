@@ -47,7 +47,24 @@ Now you can run the tests and reimplement `extract_action_items_llm()` until it 
 
 Generated Code Snippets:
 ```
-week2/tests/test_extract.py:22 - 116 
+week2/tests/test_extract.py:
+ - Line 22 - 116: 7 comprehensive test functions for LLM extraction
+
+Test functions generated:
+1. test_extract_bullet_lists(Line 25 - 39)
+    - Test extraction from bullet list format.
+2. test_extract_keyword_prefixed_lines(Line 41 - 55)
+    - Test extraction from lines with action keywords.
+3. test_extract_with_checkboxes(Line 57 - 71)
+    - Test extraction from checkbox format.
+4. test_empty_input(Line 73 - 78)
+    - Test with empty input.
+5. test_no_action_items(Line 80 - 84)
+    - Test with text that contains no action items.
+6. test_deduplication(Line 86 - 98)
+    - Test that duplicate items are removed.
+7. test_mixed_format_input(Line 100 - 115)
+    - Test with mixed format input.
 ```
 
 ### Exercise 3: Refactor Existing Code for Clarity
