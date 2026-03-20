@@ -113,12 +113,22 @@ app/routers/action_items.py:
 ### Exercise 5: Generate a README from the Codebase
 Prompt: 
 ```
-TODO
+You are a helpful coding assistant.
+Now, you should analyze the current codebase and generate a well-structured README.md file.
+The README should include, at a minimum:
+
+1. A brief overview of the project
+2. How to set up and run the project
+3. API endpoints and functionality
+4. Instructions for running the test suite
+
+It should be clear. Well documented. Include other topics as you see fit.
 ``` 
 
 Generated Code Snippets:
 ```
 TODO: List all modified code files with the relevant line numbers.
+README.md
 ```
 
 
