@@ -17,15 +17,24 @@ class StubExtractor:
     def __init__(
         self,
         result: ExtractionResult | None = None,
+        llm_result: ExtractionResult | None = None,
         error: Exception | None = None,
+        llm_error: Exception | None = None,
     ) -> None:
         self.result = result or ExtractionResult(items=[], extractor="heuristic")
+        self.llm_result = llm_result or ExtractionResult(items=[], extractor="llm")
         self.error = error
+        self.llm_error = llm_error
 
     def extract(self, text: str) -> ExtractionResult:
         if self.error is not None:
             raise self.error
         return self.result
+
+    def extract_llm(self, text: str) -> ExtractionResult:
+        if self.llm_error is not None:
+            raise self.llm_error
+        return self.llm_result
 
 
 @pytest.fixture
@@ -87,6 +96,35 @@ def test_extract_action_items_persists_note_and_items(client: TestClient) -> Non
     assert len(items) == 2
 
 
+def test_extract_llm_persists_note_and_items(client: TestClient) -> None:
+    client.app.state.action_item_extractor = StubExtractor(
+        llm_result=ExtractionResult(
+            items=["Draft the design doc", "Share notes with the team"],
+            extractor="llm",
+        )
+    )
+
+    response = client.post(
+        "/action-items/extract-llm",
+        json={"text": "Planning session follow-ups", "save_note": True},
+    )
+
+    assert response.status_code == 201
+    payload = response.json()
+    assert payload["extractor"] == "llm"
+    assert payload["note_id"] == 1
+    assert [item["text"] for item in payload["items"]] == [
+        "Draft the design doc",
+        "Share notes with the team",
+    ]
+
+    notes_response = client.get("/notes")
+    assert notes_response.status_code == 200
+    notes = notes_response.json()
+    assert len(notes) == 1
+    assert notes[0]["content"] == "Planning session follow-ups"
+
+
 def test_mark_done_returns_not_found_for_missing_item(client: TestClient) -> None:
     response = client.post("/action-items/999/done", json={"done": True})
     assert response.status_code == 404
@@ -119,5 +157,23 @@ def test_extract_returns_service_unavailable_when_extractor_fails(
     assert response.status_code == 503
     assert response.json() == {
         "detail": "Action item extraction is currently unavailable",
+        "error_code": "service_unavailable",
+    }
+
+
+def test_extract_llm_returns_service_unavailable_when_extractor_fails(
+    client: TestClient,
+) -> None:
+    client.app.state.action_item_extractor = StubExtractor(
+        llm_error=ExtractionServiceError("service unavailable")
+    )
+
+    response = client.post(
+        "/action-items/extract-llm",
+        json={"text": "Need action items", "save_note": False},
+    )
+    assert response.status_code == 503
+    assert response.json() == {
+        "detail": "LLM action item extraction is currently unavailable",
         "error_code": "service_unavailable",
     }

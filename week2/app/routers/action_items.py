@@ -13,7 +13,11 @@ from ..schemas import (
     ActionItemExtractResponse,
     ActionItemResponse,
 )
-from ..services.extract import ActionItemExtractor, ExtractionServiceError
+from ..services.extract import (
+    ActionItemExtractor,
+    ExtractionResult,
+    ExtractionServiceError,
+)
 
 
 router = APIRouter(prefix="/action-items", tags=["action-items"])
@@ -26,6 +30,27 @@ def _serialize_action_item(item: ActionItemRecord) -> ActionItemResponse:
         text=item.text,
         done=item.done,
         created_at=item.created_at,
+    )
+
+
+def _build_extract_response(
+    payload: ActionItemExtractRequest,
+    extraction: ExtractionResult,
+    database: Database,
+) -> ActionItemExtractResponse:
+    note_id: Optional[int] = None
+    if payload.save_note:
+        note, items = database.create_note_with_action_items(
+            payload.text, extraction.items
+        )
+        note_id = note.id
+    else:
+        items = database.create_action_items(extraction.items, note_id=None)
+
+    return ActionItemExtractResponse(
+        note_id=note_id,
+        extractor=extraction.extractor,
+        items=[_serialize_action_item(item) for item in items],
     )
 
 
@@ -45,20 +70,26 @@ def extract(
     except ExtractionServiceError as exc:
         raise ServiceError("Action item extraction is currently unavailable") from exc
 
-    note_id: Optional[int] = None
-    if payload.save_note:
-        note, items = database.create_note_with_action_items(
-            payload.text, extraction.items
-        )
-        note_id = note.id
-    else:
-        items = database.create_action_items(extraction.items, note_id=None)
+    return _build_extract_response(payload, extraction, database)
 
-    return ActionItemExtractResponse(
-        note_id=note_id,
-        extractor=extraction.extractor,
-        items=[_serialize_action_item(item) for item in items],
-    )
+
+@router.post(
+    "/extract-llm",
+    response_model=ActionItemExtractResponse,
+    status_code=status.HTTP_201_CREATED,
+    responses=COMMON_ERROR_RESPONSES,
+)
+def extract_llm(
+    payload: ActionItemExtractRequest,
+    database: Database = Depends(get_database),
+    extractor: ActionItemExtractor = Depends(get_action_item_extractor),
+) -> ActionItemExtractResponse:
+    try:
+        extraction = extractor.extract_llm(payload.text)
+    except ExtractionServiceError as exc:
+        raise ServiceError("LLM action item extraction is currently unavailable") from exc
+
+    return _build_extract_response(payload, extraction, database)
 
 
 @router.get(

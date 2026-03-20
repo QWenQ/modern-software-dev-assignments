@@ -178,7 +178,7 @@ def _extract_action_items_llm(text: str, model_name: str) -> list[str]:
     if not text or not text.strip():
         return []
 
-    prompt = f"""You are an expert at extracting action items from text.
+    prompt = f'''You are an expert at extracting action items from text.
 Extract all action items (tasks that need to be done) from the following text.
 Return the results as a valid JSON array of strings.
 If there are no action items, return an empty array: []
@@ -187,7 +187,7 @@ Text:
 {text}
 
 Return ONLY a valid JSON array like: ["action1", "action2", "action3"]
-Do not include any explanation or additional text."""
+Do not include any explanation or additional text.'''
 
     response_text = _call_ollama(prompt, model_name)
     return _parse_action_items_response(response_text)
@@ -211,10 +211,13 @@ class ActionItemExtractor:
         self.model_name = model_name
         self.allow_fallback = allow_fallback
 
+    def extract_llm(self, text: str) -> ExtractionResult:
+        items = _extract_action_items_llm(text, model_name=self.model_name)
+        return ExtractionResult(items=items, extractor="llm")
+
     def extract(self, text: str) -> ExtractionResult:
         try:
-            items = _extract_action_items_llm(text, model_name=self.model_name)
-            return ExtractionResult(items=items, extractor="llm")
+            return self.extract_llm(text)
         except ExtractionServiceError as exc:
             if not self.allow_fallback:
                 raise

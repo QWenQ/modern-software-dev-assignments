@@ -95,12 +95,18 @@ Refactored Files
 ### Exercise 4: Use Agentic Mode to Automate a Small Task
 Prompt: 
 ```
-TODO
+Your are a helpful coding assistant. And your work is two parts:
+1. Integrate the LLM-powered extraction as a new endpoint. Update the frontend to include an "Extract LLM" button that, when clicked, triggers the extraction process via the new endpoint.
+
+2. Expose one final endpoint to retrieve all notes. Update the frontend to include a "List Notes" button that, when clicked, fetches and displays them.
 ``` 
 
 Generated Code Snippets:
 ```
 TODO: List all modified code files with the relevant line numbers.
+app/routers/action_items.py:
+ - Line 36 - 56
+ - Line 76 - 92
 ```
 
 

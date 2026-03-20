@@ -7,12 +7,20 @@
     <style>
       body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, sans-serif; margin: 2rem auto; max-width: 800px; padding: 0 1rem; }
       h1 { font-size: 1.5rem; }
+      h2 { font-size: 1.125rem; margin-bottom: 0.5rem; }
       textarea { width: 100%; min-height: 160px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, Liberation Mono, monospace; }
       button { padding: 0.5rem 1rem; }
-      .items { margin-top: 1rem; }
+      button:disabled { cursor: progress; opacity: 0.7; }
+      .items, .notes { margin-top: 0.75rem; }
       .item { display: flex; align-items: center; gap: 0.5rem; padding: 0.25rem 0; }
       .muted { color: #6b7280; font-size: 0.875rem; }
       .row { display: flex; gap: 0.5rem; align-items: center; }
+      .controls { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; margin-top: 0.75rem; }
+      .section { margin-top: 1.5rem; padding: 1rem; border: 1px solid #d1d5db; border-radius: 0.75rem; }
+      .note { padding: 0.75rem 0; border-top: 1px solid #e5e7eb; }
+      .note:first-child { border-top: none; padding-top: 0; }
+      .note-meta { margin-bottom: 0.35rem; }
+      .note-content { white-space: pre-wrap; }
     </style>
   </head>
   <body>
@@ -21,54 +29,148 @@
 
     <label for="text">Notes</label>
     <textarea id="text" placeholder="Paste notes here...&#10;e.g.&#10;- [ ] Set up database&#10;- Implement extract endpoint"></textarea>
-    <div class="row">
+    <div class="controls">
       <label class="row"><input id="save_note" type="checkbox" checked /> Save as note</label>
-      <button id="extract">Extract</button>
+      <button id="extract" type="button">Extract</button>
+      <button id="extract_llm" type="button">Extract LLM</button>
+      <button id="list_notes" type="button">List Notes</button>
     </div>
 
-    <div class="items" id="items"></div>
+    <section class="section">
+      <h2>Action Items</h2>
+      <p class="muted" id="item_status">Run an extraction to see results.</p>
+      <div class="items" id="items"></div>
+    </section>
+
+    <section class="section">
+      <h2>Saved Notes</h2>
+      <p class="muted" id="note_status">Use List Notes to load saved notes.</p>
+      <div class="notes" id="notes"></div>
+    </section>
 
     <script>
       const $ = (sel) => document.querySelector(sel);
       const itemsEl = $('#items');
-      const btn = $('#extract');
-      btn.addEventListener('click', async () => {
+      const notesEl = $('#notes');
+      const itemStatusEl = $('#item_status');
+      const noteStatusEl = $('#note_status');
+      const buttons = [$('#extract'), $('#extract_llm'), $('#list_notes')];
+
+      const escapeHtml = (value) => String(value)
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#39;');
+
+      const setButtonsDisabled = (disabled) => {
+        buttons.forEach((button) => {
+          button.disabled = disabled;
+        });
+      };
+
+      const attachDoneHandlers = () => {
+        itemsEl.querySelectorAll('input[type="checkbox"]').forEach((checkbox) => {
+          checkbox.addEventListener('change', async (event) => {
+            const target = event.target;
+            const id = target.getAttribute('data-id');
+            try {
+              const response = await fetch(`/action-items/${id}/done`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ done: target.checked }),
+              });
+              if (!response.ok) {
+                throw new Error(`Request failed with status ${response.status}`);
+              }
+            } catch (error) {
+              console.error(error);
+              target.checked = !target.checked;
+              itemStatusEl.textContent = 'Unable to update action item status.';
+            }
+          });
+        });
+      };
+
+      const renderItems = (payload) => {
+        const savedLabel = payload.note_id ? ` Saved as note #${payload.note_id}.` : '';
+        itemStatusEl.textContent = `Extractor: ${payload.extractor}.${savedLabel}`.trim();
+        if (!payload.items || payload.items.length === 0) {
+          itemsEl.innerHTML = '<p class="muted">No action items found.</p>';
+          return;
+        }
+
+        itemsEl.innerHTML = payload.items.map((item) => (
+          `<div class="item"><input type="checkbox" data-id="${item.id}" ${item.done ? 'checked' : ''} /> <span>${escapeHtml(item.text)}</span></div>`
+        )).join('');
+        attachDoneHandlers();
+      };
+
+      const renderNotes = (notes, statusMessage) => {
+        noteStatusEl.textContent = statusMessage;
+        if (!notes.length) {
+          notesEl.innerHTML = '<p class="muted">No notes saved yet.</p>';
+          return;
+        }
+
+        notesEl.innerHTML = notes.map((note) => (
+          `<article class="note"><div class="note-meta muted">Note #${note.id} · ${escapeHtml(note.created_at)}</div><div class="note-content">${escapeHtml(note.content)}</div></article>`
+        )).join('');
+      };
+
+      const loadNotes = async (statusMessage) => {
+        noteStatusEl.textContent = 'Loading notes...';
+        notesEl.innerHTML = '';
+        setButtonsDisabled(true);
+        try {
+          const response = await fetch('/notes');
+          if (!response.ok) {
+            throw new Error(`Request failed with status ${response.status}`);
+          }
+          const notes = await response.json();
+          const fallbackMessage = notes.length ? `${notes.length} note(s) loaded.` : 'No notes saved yet.';
+          renderNotes(notes, statusMessage || fallbackMessage);
+        } catch (error) {
+          console.error(error);
+          noteStatusEl.textContent = 'Error loading notes.';
+          notesEl.innerHTML = '';
+        } finally {
+          setButtonsDisabled(false);
+        }
+      };
+
+      const performExtract = async (endpoint) => {
         const text = $('#text').value;
         const save = $('#save_note').checked;
-        itemsEl.textContent = 'Extracting...';
+        itemStatusEl.textContent = 'Extracting...';
+        itemsEl.innerHTML = '';
+        setButtonsDisabled(true);
         try {
-          const res = await fetch('/action-items/extract', {
+          const response = await fetch(endpoint, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ text, save_note: save }),
           });
-          if (!res.ok) throw new Error('Request failed');
-          const data = await res.json();
-          if (!data.items || data.items.length === 0) {
-            itemsEl.innerHTML = '<p class="muted">No action items found.</p>';
-            return;
+          if (!response.ok) {
+            throw new Error(`Request failed with status ${response.status}`);
           }
-          itemsEl.innerHTML = data.items.map(it => (
-            `<div class="item"><input type="checkbox" data-id="${it.id}" /> <span>${it.text}</span></div>`
-          )).join('');
-          itemsEl.querySelectorAll('input[type="checkbox"]').forEach(cb => {
-            cb.addEventListener('change', async (e) => {
-              const id = e.target.getAttribute('data-id');
-              await fetch(`/action-items/${id}/done`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ done: e.target.checked }),
-              });
-            });
-          });
-        } catch (err) {
-          console.error(err);
-          itemsEl.textContent = 'Error extracting items';
+          const payload = await response.json();
+          renderItems(payload);
+          if (save && payload.note_id) {
+            await loadNotes(`Loaded saved note #${payload.note_id}.`);
+          }
+        } catch (error) {
+          console.error(error);
+          itemStatusEl.textContent = 'Error extracting items.';
+          itemsEl.innerHTML = '';
+        } finally {
+          setButtonsDisabled(false);
         }
-      });
+      };
 
+      $('#extract').addEventListener('click', () => performExtract('/action-items/extract'));
+      $('#extract_llm').addEventListener('click', () => performExtract('/action-items/extract-llm'));
+      $('#list_notes').addEventListener('click', () => loadNotes());
     </script>
   </body>
-  </html>
-
-
+</html>
